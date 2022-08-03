@@ -55,7 +55,7 @@ class Operator(CharmBase):
             self.framework.observe(event, self.handle_default_gateway)
 
         self.framework.observe(
-            self.on[DEFAULT_RELATION_NAME].relation_changed, self.handle_default_gateway
+            self.on[DEFAULT_RELATION_NAME].relation_changed, self.handle_gateway_relation
         )
         self.framework.observe(self.on["istio-pilot"].relation_changed, self.send_info)
         self.framework.observe(self.on['ingress'].relation_changed, self.handle_ingress)
@@ -157,9 +157,17 @@ class Operator(CharmBase):
         self.handle_ingress(event)
 
         # check if gateway is created
-        self.handle_gateway_relation(event)
+        # Do not run handle_gateway_relation when handling the default gateway,
+        # as handle_gateway_relation strongly depends on relations, and
+        # handle_default_gateway can run before any relation is joined
+        #self.handle_gateway_relation(event)
 
     def handle_gateway_relation(self, event):
+        if not self.model.relations["gateway"]:
+            self.log.info("Waiting for remote unit to join gateway relation")
+            event.defer()
+            return
+
         is_gateway_created = self._resource_handler.validate_resource_exist(
             resource_type=self._resource_handler.get_custom_resource_class_from_filename(
                 "gateway.yaml.j2"
@@ -167,12 +175,16 @@ class Operator(CharmBase):
             resource_name=self.model.config['default-gateway'],
             resource_namespace=self.model.name,
         )
+        self.log.debug(f"Gateway is created: {is_gateway_created}")
         if is_gateway_created:
+            self.log.info("Sending gateway relation data")
             self.gateway.send_gateway_relation_data(
                 self.app, self.model.config['default-gateway'], self.model.name
             )
         else:
             self.log.info("Gateway is not created yet. Skip sending gateway relation data.")
+            event.defer()
+            return
 
     def send_info(self, event):
         if self.interfaces["istio-pilot"]:

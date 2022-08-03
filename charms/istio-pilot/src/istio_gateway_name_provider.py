@@ -12,6 +12,9 @@ class GatewayProvider(Object):
 
     def send_gateway_relation_data(self, charm, gateway_name, gateway_namespace):
         relations = self.model.relations["gateway"]
+        if not relations:
+            self.logger.debug("No relations, this line should have not run")
+            return
         for relation in relations:
             relation.data[charm].update(
                 {
