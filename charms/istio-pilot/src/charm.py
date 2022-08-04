@@ -114,6 +114,7 @@ class Operator(CharmBase):
         Side effect: self.handle_ingress() is also invoked by this handler as ingress
         resources depend on the default_gateway
         """
+        self.log.info(f"Executing handle_default_gateway on event {event}")
         # Clean-up resources
         self._resource_handler.delete_existing_resources(
             resource=self._resource_handler.get_custom_resource_class_from_filename(
@@ -153,13 +154,16 @@ class Operator(CharmBase):
         )
         self._resource_handler.apply_manifest(manifest)
 
+        self.log.info(f"Calling handle_ingress(event) from handle_default_gateway")
         # Update the ingress resources as they rely on the default_gateway
         self.handle_ingress(event)
 
+        self.log.info(f"Calling handle_gateway_relation(event) from handle_default_gateway")
         # check if gateway is created
         self.handle_gateway_relation(event)
 
     def handle_gateway_relation(self, event):
+        self.log.info(f"Executing handle_gateway_relation on event {event}")
         is_gateway_created = self._resource_handler.validate_resource_exist(
             resource_type=self._resource_handler.get_custom_resource_class_from_filename(
                 "gateway.yaml.j2"
@@ -167,7 +171,9 @@ class Operator(CharmBase):
             resource_name=self.model.config['default-gateway'],
             resource_namespace=self.model.name,
         )
+        self.log.info(f"is_gateway_created: {is_gateway_created}")
         if is_gateway_created:
+            self.log.info("Executing self.gateway.send_gateway_relation_data()")
             self.gateway.send_gateway_relation_data(
                 self.app, self.model.config['default-gateway'], self.model.name
             )
